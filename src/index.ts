@@ -4,8 +4,17 @@ import { registerServerTool } from "./tools/register-server.ts";
 import { registerTokenTool } from "./tools/register-token.ts";
 import { listServersTool } from "./tools/list-servers.ts";
 import { bindTool } from "./tools/bind.ts";
+import { commonTools } from "./tools/common.ts";
+import { projectTools } from "./tools/project.ts";
+import { postTools } from "./tools/post.ts";
+import { calendarTools } from "./tools/calendar.ts";
+import { messengerTools } from "./tools/messenger.ts";
+import { wikiTools } from "./tools/wiki.ts";
+import { driveTools } from "./tools/drive.ts";
+import { contactTools } from "./tools/contact.ts";
+import { reservationTools } from "./tools/reservation.ts";
 
-const PORT = Number(process.env.PORT) || 3000;
+const PORT = Number(process.env.PORT) || 12701;
 
 function createMcpServer(): McpServer {
   const server = new McpServer({
@@ -17,6 +26,15 @@ function createMcpServer(): McpServer {
   registerTokenTool(server);
   listServersTool(server);
   bindTool(server);
+  commonTools(server);
+  projectTools(server);
+  postTools(server);
+  calendarTools(server);
+  messengerTools(server);
+  wikiTools(server);
+  driveTools(server);
+  contactTools(server);
+  reservationTools(server);
 
   return server;
 }

@@ -21,11 +21,22 @@
 src/
 ├── index.ts              # 진입점, Bun.serve() + MCP 세션 관리
 ├── db.ts                 # DB 초기화, 테이블 생성, 헬퍼
+├── client.ts             # Dooray API HTTP 클라이언트 (bind_token 해소 + fetch)
+├── helpers.ts            # 공용 응답 헬퍼, Zod 스키마
 └── tools/
     ├── register-server.ts  # register_server 도구
     ├── register-token.ts   # register_token 도구
     ├── list-servers.ts     # list_servers 도구
-    └── bind.ts             # bind 도구
+    ├── bind.ts             # bind 도구
+    ├── common.ts           # Common API (멤버, Incoming Hook)
+    ├── project.ts          # Project API (31개)
+    ├── post.ts             # Post/Task API (19개)
+    ├── calendar.ts         # Calendar API (10개)
+    ├── messenger.ts        # Messenger API (9개)
+    ├── wiki.ts             # Wiki API (17개)
+    ├── drive.ts            # Drive API (17개)
+    ├── contact.ts          # Contact API (3개)
+    └── reservation.ts      # Reservation API (9개)
 ```
 
 ## 핵심 아키텍처
@@ -52,9 +63,15 @@ src/
 ## 명령어
 
 ```bash
-bun run dev     # 서버 실행
+bun run dev     # 서버 실행 (기본 포트: 12701)
 bun run start   # 서버 실행
 ```
+
+## 기본 포트
+
+- **기본 포트**: 12701
+- **MCP 엔드포인트**: `http://localhost:12701/mcp`
+- `PORT` 환경변수로 변경 가능
 
 ## Dooray API 참고
 
