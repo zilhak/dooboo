@@ -4,7 +4,4 @@ services:
     ports:
       - "3000:3000"
     volumes:
-      - dooboo-data:/root/.dooboo
-
-volumes:
-  dooboo-data:
+      - ~/.dooboo:/root/.dooboo

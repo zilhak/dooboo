@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { doorayFetch } from "../client.ts";
-import { ok, err, bindTokenSchema, paginationSchema } from "../helpers.ts";
+import { ok, err, okList, bindTokenSchema, paginationSchema, type DoorayProject, type DoorayWorkflow, type DoorayTag, type DoorayMilestone, type DoorayProjectMember, type DoorayMemberGroup, type DoorayTemplate } from "../helpers.ts";
 
 export function projectTools(server: McpServer) {
   server.registerTool("list_project_categories", {
@@ -12,7 +12,9 @@ export function projectTools(server: McpServer) {
   }, async ({ bind_token }) => {
     try {
       const data = await doorayFetch(bind_token, "/project/v1/project-categories");
-      return ok(data);
+      return okList(data as { result?: Array<{ id: string; name?: string }>; totalCount?: number }, (c) => ({
+        id: c.id, name: c.name,
+      }));
     } catch (e: unknown) {
       return err(e instanceof Error ? e.message : String(e));
     }
@@ -40,7 +42,7 @@ export function projectTools(server: McpServer) {
   });
 
   server.registerTool("list_projects", {
-    description: "프로젝트 목록을 조회합니다.",
+    description: "프로젝트 목록을 조회합니다. 프로젝트는 업무(태스크), 드라이브, 위키를 포함하는 컨테이너입니다.",
     inputSchema: {
       bind_token: bindTokenSchema,
       member: z.string().optional().describe("멤버 필터 (기본: me)"),
@@ -54,7 +56,9 @@ export function projectTools(server: McpServer) {
       const data = await doorayFetch(bind_token, "/project/v1/projects", {
         params: params as Record<string, string | number | undefined>,
       });
-      return ok(data);
+      return okList(data as { result?: DoorayProject[]; totalCount?: number }, (p) => ({
+        id: p.id, code: p.code, name: p.name, description: p.description, state: p.state, scope: p.scope,
+      }));
     } catch (e: unknown) {
       return err(e instanceof Error ? e.message : String(e));
     }
@@ -93,8 +97,8 @@ export function projectTools(server: McpServer) {
     }
   });
 
-  server.registerTool("list_workflows", {
-    description: "프로젝트 워크플로우 목록을 조회합니다.",
+  server.registerTool("list_task_workflows", {
+    description: "프로젝트의 업무 워크플로우(진행 상태) 목록을 조회합니다. 워크플로우는 업무의 상태 흐름(할 일→진행 중→완료 등)을 정의합니다.",
     inputSchema: {
       bind_token: bindTokenSchema,
       project_id: z.string().describe("프로젝트 ID"),
@@ -102,13 +106,15 @@ export function projectTools(server: McpServer) {
   }, async ({ bind_token, project_id }) => {
     try {
       const data = await doorayFetch(bind_token, `/project/v1/projects/${project_id}/workflows`);
-      return ok(data);
+      return okList(data as { result?: DoorayWorkflow[]; totalCount?: number }, (w) => ({
+        id: w.id, name: w.name, class: w.class, order: w.order,
+      }));
     } catch (e: unknown) {
       return err(e instanceof Error ? e.message : String(e));
     }
   });
 
-  server.registerTool("create_workflow", {
+  server.registerTool("create_task_workflow", {
     description: "워크플로우를 생성합니다.",
     inputSchema: {
       bind_token: bindTokenSchema,
@@ -130,7 +136,7 @@ export function projectTools(server: McpServer) {
     }
   });
 
-  server.registerTool("update_workflow", {
+  server.registerTool("update_task_workflow", {
     description: "워크플로우를 수정합니다.",
     inputSchema: {
       bind_token: bindTokenSchema,
@@ -153,7 +159,7 @@ export function projectTools(server: McpServer) {
     }
   });
 
-  server.registerTool("delete_workflow", {
+  server.registerTool("delete_task_workflow", {
     description: "워크플로우를 삭제합니다.",
     inputSchema: {
       bind_token: bindTokenSchema,
@@ -209,7 +215,7 @@ export function projectTools(server: McpServer) {
     }
   });
 
-  server.registerTool("create_tag", {
+  server.registerTool("create_project_tag", {
     description: "프로젝트 태그를 생성합니다.",
     inputSchema: {
       bind_token: bindTokenSchema,
@@ -229,7 +235,7 @@ export function projectTools(server: McpServer) {
     }
   });
 
-  server.registerTool("list_tags", {
+  server.registerTool("list_project_tags", {
     description: "프로젝트 태그 목록을 조회합니다.",
     inputSchema: {
       bind_token: bindTokenSchema,
@@ -241,13 +247,15 @@ export function projectTools(server: McpServer) {
       const data = await doorayFetch(bind_token, `/project/v1/projects/${project_id}/tags`, {
         params: { page, size },
       });
-      return ok(data);
+      return okList(data as { result?: DoorayTag[]; totalCount?: number }, (t) => ({
+        id: t.id, name: t.name, color: t.color,
+      }));
     } catch (e: unknown) {
       return err(e instanceof Error ? e.message : String(e));
     }
   });
 
-  server.registerTool("get_tag", {
+  server.registerTool("get_project_tag", {
     description: "프로젝트 태그 상세를 조회합니다.",
     inputSchema: {
       bind_token: bindTokenSchema,
@@ -263,7 +271,7 @@ export function projectTools(server: McpServer) {
     }
   });
 
-  server.registerTool("update_tag_group", {
+  server.registerTool("update_project_tag_group", {
     description: "태그 그룹 설정을 수정합니다.",
     inputSchema: {
       bind_token: bindTokenSchema,
@@ -284,7 +292,7 @@ export function projectTools(server: McpServer) {
     }
   });
 
-  server.registerTool("create_milestone", {
+  server.registerTool("create_project_milestone", {
     description: "마일스톤을 생성합니다.",
     inputSchema: {
       bind_token: bindTokenSchema,
@@ -305,7 +313,7 @@ export function projectTools(server: McpServer) {
     }
   });
 
-  server.registerTool("list_milestones", {
+  server.registerTool("list_project_milestones", {
     description: "마일스톤 목록을 조회합니다.",
     inputSchema: {
       bind_token: bindTokenSchema,
@@ -318,13 +326,15 @@ export function projectTools(server: McpServer) {
       const data = await doorayFetch(bind_token, `/project/v1/projects/${project_id}/milestones`, {
         params: { status, page, size },
       });
-      return ok(data);
+      return okList(data as { result?: DoorayMilestone[]; totalCount?: number }, (m) => ({
+        id: m.id, name: m.name, startedAt: m.startedAt, endedAt: m.endedAt, status: m.status,
+      }));
     } catch (e: unknown) {
       return err(e instanceof Error ? e.message : String(e));
     }
   });
 
-  server.registerTool("get_milestone", {
+  server.registerTool("get_project_milestone", {
     description: "마일스톤 상세를 조회합니다.",
     inputSchema: {
       bind_token: bindTokenSchema,
@@ -340,7 +350,7 @@ export function projectTools(server: McpServer) {
     }
   });
 
-  server.registerTool("update_milestone", {
+  server.registerTool("update_project_milestone", {
     description: "마일스톤을 수정합니다.",
     inputSchema: {
       bind_token: bindTokenSchema,
@@ -363,7 +373,7 @@ export function projectTools(server: McpServer) {
     }
   });
 
-  server.registerTool("delete_milestone", {
+  server.registerTool("delete_project_milestone", {
     description: "마일스톤을 삭제합니다.",
     inputSchema: {
       bind_token: bindTokenSchema,
@@ -436,7 +446,11 @@ export function projectTools(server: McpServer) {
       const data = await doorayFetch(bind_token, `/project/v1/projects/${project_id}/members`, {
         params: { roles, page, size },
       });
-      return ok(data);
+      return okList(data as { result?: DoorayProjectMember[]; totalCount?: number }, (m) => ({
+        organizationMemberId: m.member?.organizationMemberId ?? m.organizationMemberId,
+        name: m.member?.name ?? m.name,
+        role: m.role,
+      }));
     } catch (e: unknown) {
       return err(e instanceof Error ? e.message : String(e));
     }
@@ -470,7 +484,9 @@ export function projectTools(server: McpServer) {
       const data = await doorayFetch(bind_token, `/project/v1/projects/${project_id}/member-groups`, {
         params: { page, size },
       });
-      return ok(data);
+      return okList(data as { result?: DoorayMemberGroup[]; totalCount?: number }, (g) => ({
+        id: g.id, name: g.name, memberCount: g.memberCount,
+      }));
     } catch (e: unknown) {
       return err(e instanceof Error ? e.message : String(e));
     }
@@ -492,7 +508,7 @@ export function projectTools(server: McpServer) {
     }
   });
 
-  server.registerTool("create_template", {
+  server.registerTool("create_task_template", {
     description: "업무 템플릿을 생성합니다.",
     inputSchema: {
       bind_token: bindTokenSchema,
@@ -521,7 +537,7 @@ export function projectTools(server: McpServer) {
     }
   });
 
-  server.registerTool("list_templates", {
+  server.registerTool("list_task_templates", {
     description: "업무 템플릿 목록을 조회합니다.",
     inputSchema: {
       bind_token: bindTokenSchema,
@@ -533,13 +549,15 @@ export function projectTools(server: McpServer) {
       const data = await doorayFetch(bind_token, `/project/v1/projects/${project_id}/templates`, {
         params: { page, size },
       });
-      return ok(data);
+      return okList(data as { result?: DoorayTemplate[]; totalCount?: number }, (t) => ({
+        id: t.id, name: t.templateName ?? t.name,
+      }));
     } catch (e: unknown) {
       return err(e instanceof Error ? e.message : String(e));
     }
   });
 
-  server.registerTool("get_template", {
+  server.registerTool("get_task_template", {
     description: "업무 템플릿 상세를 조회합니다.",
     inputSchema: {
       bind_token: bindTokenSchema,
@@ -558,7 +576,7 @@ export function projectTools(server: McpServer) {
     }
   });
 
-  server.registerTool("update_template", {
+  server.registerTool("update_task_template", {
     description: "업무 템플릿을 수정합니다.",
     inputSchema: {
       bind_token: bindTokenSchema,
@@ -588,7 +606,7 @@ export function projectTools(server: McpServer) {
     }
   });
 
-  server.registerTool("delete_template", {
+  server.registerTool("delete_task_template", {
     description: "업무 템플릿을 삭제합니다.",
     inputSchema: {
       bind_token: bindTokenSchema,

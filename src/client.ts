@@ -83,3 +83,48 @@ export async function doorayFetch(bindToken: string, path: string, options?: Fet
   const response = await fetch(url, fetchOptions);
   return response.json();
 }
+
+export async function doorayDownload(bindToken: string, path: string, savePath: string): Promise<string> {
+  const { server_url, token } = resolveBinding(bindToken);
+  const apiBase = deriveApiBaseUrl(server_url);
+  const url = `${apiBase}${path}`;
+
+  // 1차: 리다이렉트 URL 확인
+  const initialResponse = await fetch(url, {
+    headers: { "Authorization": `dooray-api ${token}` },
+    redirect: "manual",
+  });
+
+  let finalResponse: Response;
+  if (initialResponse.status >= 300 && initialResponse.status < 400) {
+    const redirectUrl = initialResponse.headers.get("location");
+    if (!redirectUrl) {
+      throw new Error(`리다이렉트 URL을 찾을 수 없습니다 (${initialResponse.status})`);
+    }
+    finalResponse = await fetch(redirectUrl, {
+      headers: { "Authorization": `dooray-api ${token}` },
+    });
+  } else if (initialResponse.ok) {
+    finalResponse = initialResponse;
+  } else {
+    // 디버그: 응답 본문 확인
+    const body = await initialResponse.text();
+    throw new Error(`다운로드 실패 (${initialResponse.status}): ${body.substring(0, 200)}`);
+  }
+
+  if (!finalResponse.ok) {
+    throw new Error(`다운로드 실패 (${finalResponse.status}): ${finalResponse.statusText}`);
+  }
+
+  const buffer = await finalResponse.arrayBuffer();
+  const { mkdirSync, existsSync, writeFileSync } = await import("node:fs");
+  const { dirname } = await import("node:path");
+
+  const dir = dirname(savePath);
+  if (!existsSync(dir)) {
+    mkdirSync(dir, { recursive: true });
+  }
+
+  writeFileSync(savePath, Buffer.from(buffer));
+  return savePath;
+}

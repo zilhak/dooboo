@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { doorayFetch } from "../client.ts";
-import { ok, err, bindTokenSchema, paginationSchema } from "../helpers.ts";
+import { ok, err, okList, bindTokenSchema, paginationSchema } from "../helpers.ts";
 
 export function calendarTools(server: McpServer) {
   server.registerTool("create_calendar", {
@@ -37,7 +37,9 @@ export function calendarTools(server: McpServer) {
       const data = await doorayFetch(bind_token, "/calendar/v1/calendars", {
         params: { page, size },
       });
-      return ok(data);
+      return okList(data as { result?: Array<{ id: string; name?: string; type?: string }>; totalCount?: number }, (c) => ({
+        id: c.id, name: c.name, type: c.type,
+      }));
     } catch (e: unknown) {
       return err(e instanceof Error ? e.message : String(e));
     }
@@ -136,7 +138,9 @@ export function calendarTools(server: McpServer) {
       const data = await doorayFetch(bind_token, "/calendar/v1/calendars/*/events", {
         params: { timeMin, timeMax, calendars, postType, category },
       });
-      return ok(data);
+      return okList(data as { result?: Array<{ id: string; subject?: string; startedAt?: string; endedAt?: string; location?: string; creator?: { member?: { organizationMemberId?: string } } }>; totalCount?: number }, (e) => ({
+        id: e.id, subject: e.subject, startedAt: e.startedAt, endedAt: e.endedAt, location: e.location, creatorId: e.creator?.member?.organizationMemberId,
+      }));
     } catch (e: unknown) {
       return err(e instanceof Error ? e.message : String(e));
     }

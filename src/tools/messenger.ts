@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { doorayFetch } from "../client.ts";
-import { ok, err, bindTokenSchema } from "../helpers.ts";
+import { ok, err, okList, bindTokenSchema } from "../helpers.ts";
 
 export function messengerTools(server: McpServer) {
   server.registerTool("send_direct_message", {
@@ -31,7 +31,9 @@ export function messengerTools(server: McpServer) {
   }, async ({ bind_token }) => {
     try {
       const data = await doorayFetch(bind_token, "/messenger/v1/channels");
-      return ok(data);
+      return okList(data as { result?: Array<{ id: string; name?: string; type?: string; memberCount?: number }>; totalCount?: number }, (ch) => ({
+        id: ch.id, name: ch.name, type: ch.type, memberCount: ch.memberCount,
+      }));
     } catch (e: unknown) {
       return err(e instanceof Error ? e.message : String(e));
     }

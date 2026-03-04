@@ -20,6 +20,11 @@ function createMcpServer(): McpServer {
   const server = new McpServer({
     name: "dooboo",
     version: "0.1.0",
+    instructions: `Dooray 협업 플랫폼 MCP 서버입니다. 사용자가 Dooray, 업무(태스크), 위키, 캘린더, 메신저, 드라이브, 주소록, 자원예약 등을 언급하거나 nhnent.dooray.com URL을 제공할 때 이 서버를 사용하세요.
+
+사용 흐름: list_servers → bind(server_id) → bind_token으로 도구 호출.
+처음 사용 시: register_server(url) → register_token(server_id, token) → bind → 도구 호출.
+티켓 조회: find_task_by_ticket(ticket, include)로 본문/댓글/이미지를 한번에 조회 가능.`,
   });
 
   registerServerTool(server);
@@ -48,6 +53,15 @@ Bun.serve({
 
     if (url.pathname !== "/mcp") {
       return new Response("Not Found", { status: 404 });
+    }
+
+    // MCP SDK requires Accept header with both application/json and text/event-stream.
+    // Some MCP clients (e.g. Claude Code) may not send this, so we ensure it.
+    const accept = req.headers.get("accept") ?? "";
+    if (!accept.includes("application/json") || !accept.includes("text/event-stream")) {
+      const headers = new Headers(req.headers);
+      headers.set("accept", "application/json, text/event-stream");
+      req = new Request(req, { headers });
     }
 
     if (req.method === "GET" || req.method === "DELETE") {

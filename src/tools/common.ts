@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { doorayFetch } from "../client.ts";
-import { ok, err, bindTokenSchema, paginationSchema } from "../helpers.ts";
+import { ok, err, okList, bindTokenSchema, paginationSchema } from "../helpers.ts";
 
 export function commonTools(server: McpServer) {
   server.registerTool("list_members", {
@@ -17,7 +17,9 @@ export function commonTools(server: McpServer) {
   }, async ({ bind_token, ...params }) => {
     try {
       const data = await doorayFetch(bind_token, "/common/v1/members", { params: params as Record<string, string | number | undefined> });
-      return ok(data);
+      return okList(data as { result?: Array<{ id?: string; organizationMemberId?: string; name?: string; userCode?: string; emailAddress?: string }>; totalCount?: number }, (m) => ({
+        id: m.organizationMemberId ?? m.id, name: m.name, userCode: m.userCode, emailAddress: m.emailAddress,
+      }));
     } catch (e: unknown) {
       return err(e instanceof Error ? e.message : String(e));
     }

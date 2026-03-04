@@ -1,11 +1,11 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { doorayFetch } from "../client.ts";
-import { ok, err, bindTokenSchema, paginationSchema } from "../helpers.ts";
+import { ok, err, okList, bindTokenSchema, paginationSchema } from "../helpers.ts";
 
 export function wikiTools(server: McpServer) {
   server.registerTool("list_wikis", {
-    description: "접근 가능한 위키 목록을 조회합니다.",
+    description: "접근 가능한 위키 목록을 조회합니다. 각 프로젝트는 자체 위키 공간을 가지며, 여기서 해당 위키 ID를 확인할 수 있습니다.",
     inputSchema: {
       bind_token: bindTokenSchema,
       ...paginationSchema,
@@ -13,7 +13,9 @@ export function wikiTools(server: McpServer) {
   }, async ({ bind_token, page, size }) => {
     try {
       const data = await doorayFetch(bind_token, "/wiki/v1/wikis", { params: { page, size } });
-      return ok(data);
+      return okList(data as { result?: Array<{ id: string; name?: string }>; totalCount?: number }, (w) => ({
+        id: w.id, name: w.name,
+      }));
     } catch (e: unknown) {
       return err(e instanceof Error ? e.message : String(e));
     }
@@ -35,7 +37,7 @@ export function wikiTools(server: McpServer) {
   });
 
   server.registerTool("create_wiki_page", {
-    description: "위키 페이지를 생성합니다.",
+    description: "위키에 새 페이지를 생성합니다. 마크다운 본문을 지원하며, 부모 페이지를 지정하여 계층 구조를 만들 수 있습니다.",
     inputSchema: {
       bind_token: bindTokenSchema,
       wiki_id: z.string().describe("위키 ID"),
@@ -61,7 +63,7 @@ export function wikiTools(server: McpServer) {
   });
 
   server.registerTool("list_wiki_pages", {
-    description: "위키 페이지 목록을 조회합니다 (한 depth의 sibling 페이지들).",
+    description: "위키 페이지 목록을 조회합니다 (한 depth의 형제 페이지들). parentPageId를 지정하면 해당 페이지의 하위 페이지들을, 생략하면 최상위 페이지들을 반환합니다.",
     inputSchema: {
       bind_token: bindTokenSchema,
       wiki_id: z.string().describe("위키 ID"),
@@ -72,7 +74,9 @@ export function wikiTools(server: McpServer) {
       const data = await doorayFetch(bind_token, `/wiki/v1/wikis/${wiki_id}/pages`, {
         params: { parentPageId },
       });
-      return ok(data);
+      return okList(data as { result?: Array<{ id: string; subject?: string; parentPageId?: string; order?: number; createdAt?: string; updatedAt?: string }>; totalCount?: number }, (p) => ({
+        id: p.id, subject: p.subject, parentPageId: p.parentPageId, order: p.order, createdAt: p.createdAt, updatedAt: p.updatedAt,
+      }));
     } catch (e: unknown) {
       return err(e instanceof Error ? e.message : String(e));
     }
@@ -184,7 +188,7 @@ export function wikiTools(server: McpServer) {
 
   // Comments
   server.registerTool("create_wiki_comment", {
-    description: "위키 페이지에 댓글을 추가합니다.",
+    description: "위키 페이지에 댓글을 추가합니다 (마크다운 지원).",
     inputSchema: {
       bind_token: bindTokenSchema,
       wiki_id: z.string().describe("위키 ID"),
@@ -216,7 +220,9 @@ export function wikiTools(server: McpServer) {
       const data = await doorayFetch(bind_token, `/wiki/v1/wikis/${wiki_id}/pages/${page_id}/comments`, {
         params: { page, size },
       });
-      return ok(data);
+      return okList(data as { result?: Array<{ id: string; createdAt?: string; creator?: { member?: { organizationMemberId?: string } } }>; totalCount?: number }, (c) => ({
+        id: c.id, createdAt: c.createdAt, creatorId: c.creator?.member?.organizationMemberId,
+      }));
     } catch (e: unknown) {
       return err(e instanceof Error ? e.message : String(e));
     }
@@ -294,7 +300,9 @@ export function wikiTools(server: McpServer) {
       const data = await doorayFetch(bind_token, `/wiki/v1/wikis/${wiki_id}/pages/${page_id}/shared-links`, {
         params: { valid, page, size },
       });
-      return ok(data);
+      return okList(data as { result?: Array<{ id: string; url?: string; createdAt?: string }>; totalCount?: number }, (l) => ({
+        id: l.id, url: l.url, createdAt: l.createdAt,
+      }));
     } catch (e: unknown) {
       return err(e instanceof Error ? e.message : String(e));
     }

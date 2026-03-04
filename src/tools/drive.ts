@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { doorayFetch } from "../client.ts";
-import { ok, err, bindTokenSchema, paginationSchema } from "../helpers.ts";
+import { ok, err, okList, bindTokenSchema, paginationSchema, type DoorayFile } from "../helpers.ts";
 
 export function driveTools(server: McpServer) {
   server.registerTool("list_drives", {
@@ -18,7 +18,9 @@ export function driveTools(server: McpServer) {
       const data = await doorayFetch(bind_token, "/drive/v1/drives", {
         params: params as Record<string, string | undefined>,
       });
-      return ok(data);
+      return okList(data as { result?: Array<{ id: string; name?: string; capacity?: number; usedCapacity?: number }>; totalCount?: number }, (d) => ({
+        id: d.id, name: d.name, capacity: d.capacity, usedCapacity: d.usedCapacity,
+      }));
     } catch (e: unknown) {
       return err(e instanceof Error ? e.message : String(e));
     }
@@ -53,7 +55,9 @@ export function driveTools(server: McpServer) {
       const data = await doorayFetch(bind_token, `/drive/v1/drives/${drive_id}/changes`, {
         params: { latestRevision, fileId, size },
       });
-      return ok(data);
+      return okList(data as { result?: Array<{ id: string; action?: string; fileId?: string; fileName?: string; createdAt?: string }>; totalCount?: number }, (c) => ({
+        id: c.id, action: c.action, fileId: c.fileId, fileName: c.fileName, createdAt: c.createdAt,
+      }));
     } catch (e: unknown) {
       return err(e instanceof Error ? e.message : String(e));
     }
@@ -91,7 +95,9 @@ export function driveTools(server: McpServer) {
       const data = await doorayFetch(bind_token, `/drive/v1/drives/${drive_id}/files`, {
         params: { type, subTypes, parentId, page, size },
       });
-      return ok(data);
+      return okList(data as { result?: DoorayFile[]; totalCount?: number }, (f) => ({
+        id: f.id, name: f.name, size: f.size, mimeType: f.mimeType, type: f.type, createdAt: f.createdAt, updatedAt: f.updatedAt,
+      }));
     } catch (e: unknown) {
       return err(e instanceof Error ? e.message : String(e));
     }
@@ -250,7 +256,9 @@ export function driveTools(server: McpServer) {
       const data = await doorayFetch(bind_token, `/drive/v1/drives/${drive_id}/files/${file_id}/shared-links`, {
         params: { valid },
       });
-      return ok(data);
+      return okList(data as { result?: Array<{ id: string; url?: string; createdAt?: string }>; totalCount?: number }, (l) => ({
+        id: l.id, url: l.url, createdAt: l.createdAt,
+      }));
     } catch (e: unknown) {
       return err(e instanceof Error ? e.message : String(e));
     }
