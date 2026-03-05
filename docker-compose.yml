@@ -2,6 +2,6 @@ services:
   dooboo:
     build: .
     ports:
-      - "3000:3000"
+      - "12701:12701"
     volumes:
       - ~/.dooboo:/root/.dooboo

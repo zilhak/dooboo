@@ -114,9 +114,19 @@ export function err(message: string) {
 export function okList<T>(
   data: { header?: unknown; result?: T[]; totalCount?: number },
   mapper: (item: T) => Record<string, unknown>,
+  filter?: Record<string, string>,
 ) {
-  const items = (data.result ?? []).map(mapper);
-  return ok({ totalCount: data.totalCount ?? items.length, result: items });
+  let items = (data.result ?? []).map(mapper);
+  if (filter) {
+    const patterns = Object.entries(filter).map(([key, pattern]) => [key, new RegExp(pattern)] as const);
+    items = items.filter((item) =>
+      patterns.every(([key, re]) => {
+        const val = item[key];
+        return val != null && re.test(String(val));
+      }),
+    );
+  }
+  return ok({ totalCount: items.length, result: items });
 }
 
 export const bindTokenSchema = z.string().length(8).describe("bind 도구로 발급받은 8자리 바인드 토큰");
@@ -124,4 +134,8 @@ export const bindTokenSchema = z.string().length(8).describe("bind 도구로 발
 export const paginationSchema = {
   page: z.number().int().min(0).optional().describe("페이지 번호 (0부터 시작, 기본값 0)"),
   size: z.number().int().min(1).max(100).optional().describe("페이지 크기 (기본값 20, 최대 100)"),
+};
+
+export const filterSchema = {
+  filter: z.record(z.string(), z.string()).optional().describe("결과 필터링. 필드명을 키로, 정규식 패턴을 값으로 지정 (예: {emailAddress: 'injeinc\\\\.co\\\\.kr$', name: '^이'})"),
 };

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { doorayFetch } from "../client.ts";
-import { ok, err, okList, bindTokenSchema, paginationSchema, type DoorayFile } from "../helpers.ts";
+import { ok, err, okList, bindTokenSchema, paginationSchema, filterSchema, type DoorayFile } from "../helpers.ts";
 
 export function driveTools(server: McpServer) {
   server.registerTool("list_drives", {
@@ -12,15 +12,16 @@ export function driveTools(server: McpServer) {
       type: z.enum(["private", "project"]).optional().describe("드라이브 유형 (private/project)"),
       scope: z.enum(["private", "public"]).optional().describe("프로젝트 범위 (type=project인 경우)"),
       state: z.string().optional().describe("프로젝트 상태 (active,archived)"),
+      ...filterSchema,
     },
-  }, async ({ bind_token, ...params }) => {
+  }, async ({ bind_token, filter, ...params }) => {
     try {
       const data = await doorayFetch(bind_token, "/drive/v1/drives", {
         params: params as Record<string, string | undefined>,
       });
       return okList(data as { result?: Array<{ id: string; name?: string; capacity?: number; usedCapacity?: number }>; totalCount?: number }, (d) => ({
         id: d.id, name: d.name, capacity: d.capacity, usedCapacity: d.usedCapacity,
-      }));
+      }), filter);
     } catch (e: unknown) {
       return err(e instanceof Error ? e.message : String(e));
     }
@@ -49,15 +50,16 @@ export function driveTools(server: McpServer) {
       latestRevision: z.number().optional().describe("조회 기준 revision (기본 0)"),
       fileId: z.string().optional().describe("기준 파일 ID"),
       size: z.number().optional().describe("조회 개수 (기본 20, 최대 200)"),
+      ...filterSchema,
     },
-  }, async ({ bind_token, drive_id, latestRevision, fileId, size }) => {
+  }, async ({ bind_token, filter, drive_id, latestRevision, fileId, size }) => {
     try {
       const data = await doorayFetch(bind_token, `/drive/v1/drives/${drive_id}/changes`, {
         params: { latestRevision, fileId, size },
       });
       return okList(data as { result?: Array<{ id: string; action?: string; fileId?: string; fileName?: string; createdAt?: string }>; totalCount?: number }, (c) => ({
         id: c.id, action: c.action, fileId: c.fileId, fileName: c.fileName, createdAt: c.createdAt,
-      }));
+      }), filter);
     } catch (e: unknown) {
       return err(e instanceof Error ? e.message : String(e));
     }
@@ -89,15 +91,16 @@ export function driveTools(server: McpServer) {
       subTypes: z.string().optional().describe("하위 유형 (root,trash 등 콤마 구분)"),
       parentId: z.string().optional().describe("상위 폴더 ID"),
       ...paginationSchema,
+      ...filterSchema,
     },
-  }, async ({ bind_token, drive_id, type, subTypes, parentId, page, size }) => {
+  }, async ({ bind_token, filter, drive_id, type, subTypes, parentId, page, size }) => {
     try {
       const data = await doorayFetch(bind_token, `/drive/v1/drives/${drive_id}/files`, {
         params: { type, subTypes, parentId, page, size },
       });
       return okList(data as { result?: DoorayFile[]; totalCount?: number }, (f) => ({
         id: f.id, name: f.name, size: f.size, mimeType: f.mimeType, type: f.type, createdAt: f.createdAt, updatedAt: f.updatedAt,
-      }));
+      }), filter);
     } catch (e: unknown) {
       return err(e instanceof Error ? e.message : String(e));
     }
@@ -250,15 +253,16 @@ export function driveTools(server: McpServer) {
       drive_id: z.string().describe("드라이브 ID"),
       file_id: z.string().describe("파일 ID"),
       valid: z.boolean().optional().describe("유효한 링크만 조회 (기본값 true)"),
+      ...filterSchema,
     },
-  }, async ({ bind_token, drive_id, file_id, valid }) => {
+  }, async ({ bind_token, filter, drive_id, file_id, valid }) => {
     try {
       const data = await doorayFetch(bind_token, `/drive/v1/drives/${drive_id}/files/${file_id}/shared-links`, {
         params: { valid },
       });
       return okList(data as { result?: Array<{ id: string; url?: string; createdAt?: string }>; totalCount?: number }, (l) => ({
         id: l.id, url: l.url, createdAt: l.createdAt,
-      }));
+      }), filter);
     } catch (e: unknown) {
       return err(e instanceof Error ? e.message : String(e));
     }

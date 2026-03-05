@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { doorayFetch } from "../client.ts";
-import { ok, err, okList, bindTokenSchema, paginationSchema } from "../helpers.ts";
+import { ok, err, okList, bindTokenSchema, paginationSchema, filterSchema } from "../helpers.ts";
 
 export function reservationTools(server: McpServer) {
   server.registerTool("list_resource_categories", {
@@ -9,13 +9,14 @@ export function reservationTools(server: McpServer) {
     inputSchema: {
       bind_token: bindTokenSchema,
       ...paginationSchema,
+      ...filterSchema,
     },
-  }, async ({ bind_token, page, size }) => {
+  }, async ({ bind_token, filter, page, size }) => {
     try {
       const data = await doorayFetch(bind_token, "/reservation/v1/resource-categories", { params: { page, size } });
       return okList(data as { result?: Array<{ id: string; name?: string }>; totalCount?: number }, (c) => ({
         id: c.id, name: c.name,
-      }));
+      }), filter);
     } catch (e: unknown) {
       return err(e instanceof Error ? e.message : String(e));
     }
@@ -26,13 +27,14 @@ export function reservationTools(server: McpServer) {
     inputSchema: {
       bind_token: bindTokenSchema,
       resourceCategoryId: z.string().optional().describe("자원 유형 ID로 필터"),
+      ...filterSchema,
     },
-  }, async ({ bind_token, resourceCategoryId }) => {
+  }, async ({ bind_token, filter, resourceCategoryId }) => {
     try {
       const data = await doorayFetch(bind_token, "/reservation/v1/resources", { params: { resourceCategoryId } });
       return okList(data as { result?: Array<{ id: string; name?: string; resourceCategoryId?: string; description?: string }>; totalCount?: number }, (r) => ({
         id: r.id, name: r.name, categoryId: r.resourceCategoryId, description: r.description,
-      }));
+      }), filter);
     } catch (e: unknown) {
       return err(e instanceof Error ? e.message : String(e));
     }
@@ -58,13 +60,14 @@ export function reservationTools(server: McpServer) {
     inputSchema: {
       bind_token: bindTokenSchema,
       resourceCategoryId: z.string().optional().describe("자원 유형 ID로 필터"),
+      ...filterSchema,
     },
-  }, async ({ bind_token, resourceCategoryId }) => {
+  }, async ({ bind_token, filter, resourceCategoryId }) => {
     try {
       const data = await doorayFetch(bind_token, "/reservation/v1/reservable-resources", { params: { resourceCategoryId } });
       return okList(data as { result?: Array<{ id: string; name?: string; resourceCategoryId?: string }>; totalCount?: number }, (r) => ({
         id: r.id, name: r.name, categoryId: r.resourceCategoryId,
-      }));
+      }), filter);
     } catch (e: unknown) {
       return err(e instanceof Error ? e.message : String(e));
     }
@@ -78,15 +81,16 @@ export function reservationTools(server: McpServer) {
       timeMax: z.string().describe("조회 종료 시간 (ISO8601, 필수)"),
       resourceIds: z.string().optional().describe("자원 ID 목록 (콤마 구분)"),
       ...paginationSchema,
+      ...filterSchema,
     },
-  }, async ({ bind_token, timeMin, timeMax, resourceIds, page, size }) => {
+  }, async ({ bind_token, filter, timeMin, timeMax, resourceIds, page, size }) => {
     try {
       const data = await doorayFetch(bind_token, "/reservation/v1/resource-reservations", {
         params: { timeMin, timeMax, resourceIds, page, size },
       });
       return okList(data as { result?: Array<{ id: string; resourceId?: string; subject?: string; startedAt?: string; endedAt?: string; creator?: { member?: { organizationMemberId?: string } } }>; totalCount?: number }, (r) => ({
         id: r.id, resourceId: r.resourceId, subject: r.subject, startedAt: r.startedAt, endedAt: r.endedAt, creatorId: r.creator?.member?.organizationMemberId,
-      }));
+      }), filter);
     } catch (e: unknown) {
       return err(e instanceof Error ? e.message : String(e));
     }

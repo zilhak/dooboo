@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { doorayFetch } from "../client.ts";
-import { ok, err, okList, bindTokenSchema, paginationSchema } from "../helpers.ts";
+import { ok, err, okList, bindTokenSchema, paginationSchema, filterSchema } from "../helpers.ts";
 
 export function contactTools(server: McpServer) {
   server.registerTool("list_contacts", {
@@ -9,13 +9,14 @@ export function contactTools(server: McpServer) {
     inputSchema: {
       bind_token: bindTokenSchema,
       ...paginationSchema,
+      ...filterSchema,
     },
-  }, async ({ bind_token, page, size }) => {
+  }, async ({ bind_token, filter, page, size }) => {
     try {
       const data = await doorayFetch(bind_token, "/contacts/v1/contacts", { params: { page, size } });
       return okList(data as { result?: Array<{ id: string; name?: string; emailAddress?: string; phoneNumber?: string }>; totalCount?: number }, (c) => ({
         id: c.id, name: c.name, emailAddress: c.emailAddress, phoneNumber: c.phoneNumber,
-      }));
+      }), filter);
     } catch (e: unknown) {
       return err(e instanceof Error ? e.message : String(e));
     }

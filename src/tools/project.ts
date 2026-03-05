@@ -1,20 +1,21 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { doorayFetch } from "../client.ts";
-import { ok, err, okList, bindTokenSchema, paginationSchema, type DoorayProject, type DoorayWorkflow, type DoorayTag, type DoorayMilestone, type DoorayProjectMember, type DoorayMemberGroup, type DoorayTemplate } from "../helpers.ts";
+import { ok, err, okList, bindTokenSchema, paginationSchema, filterSchema, type DoorayProject, type DoorayWorkflow, type DoorayTag, type DoorayMilestone, type DoorayProjectMember, type DoorayMemberGroup, type DoorayTemplate } from "../helpers.ts";
 
 export function projectTools(server: McpServer) {
   server.registerTool("list_project_categories", {
     description: "프로젝트 카테고리 목록을 조회합니다.",
     inputSchema: {
       bind_token: bindTokenSchema,
+      ...filterSchema,
     },
-  }, async ({ bind_token }) => {
+  }, async ({ bind_token, filter }) => {
     try {
       const data = await doorayFetch(bind_token, "/project/v1/project-categories");
       return okList(data as { result?: Array<{ id: string; name?: string }>; totalCount?: number }, (c) => ({
         id: c.id, name: c.name,
-      }));
+      }), filter);
     } catch (e: unknown) {
       return err(e instanceof Error ? e.message : String(e));
     }
@@ -50,15 +51,16 @@ export function projectTools(server: McpServer) {
       scope: z.string().optional().describe("공개 범위"),
       state: z.string().optional().describe("프로젝트 상태"),
       ...paginationSchema,
+      ...filterSchema,
     },
-  }, async ({ bind_token, ...params }) => {
+  }, async ({ bind_token, filter, ...params }) => {
     try {
       const data = await doorayFetch(bind_token, "/project/v1/projects", {
         params: params as Record<string, string | number | undefined>,
       });
       return okList(data as { result?: DoorayProject[]; totalCount?: number }, (p) => ({
         id: p.id, code: p.code, name: p.name, description: p.description, state: p.state, scope: p.scope,
-      }));
+      }), filter);
     } catch (e: unknown) {
       return err(e instanceof Error ? e.message : String(e));
     }
@@ -102,13 +104,14 @@ export function projectTools(server: McpServer) {
     inputSchema: {
       bind_token: bindTokenSchema,
       project_id: z.string().describe("프로젝트 ID"),
+      ...filterSchema,
     },
-  }, async ({ bind_token, project_id }) => {
+  }, async ({ bind_token, filter, project_id }) => {
     try {
       const data = await doorayFetch(bind_token, `/project/v1/projects/${project_id}/workflows`);
       return okList(data as { result?: DoorayWorkflow[]; totalCount?: number }, (w) => ({
         id: w.id, name: w.name, class: w.class, order: w.order,
-      }));
+      }), filter);
     } catch (e: unknown) {
       return err(e instanceof Error ? e.message : String(e));
     }
@@ -241,15 +244,16 @@ export function projectTools(server: McpServer) {
       bind_token: bindTokenSchema,
       project_id: z.string().describe("프로젝트 ID"),
       ...paginationSchema,
+      ...filterSchema,
     },
-  }, async ({ bind_token, project_id, page, size }) => {
+  }, async ({ bind_token, filter, project_id, page, size }) => {
     try {
       const data = await doorayFetch(bind_token, `/project/v1/projects/${project_id}/tags`, {
         params: { page, size },
       });
       return okList(data as { result?: DoorayTag[]; totalCount?: number }, (t) => ({
         id: t.id, name: t.name, color: t.color,
-      }));
+      }), filter);
     } catch (e: unknown) {
       return err(e instanceof Error ? e.message : String(e));
     }
@@ -320,15 +324,16 @@ export function projectTools(server: McpServer) {
       project_id: z.string().describe("프로젝트 ID"),
       status: z.string().optional().describe("마일스톤 상태"),
       ...paginationSchema,
+      ...filterSchema,
     },
-  }, async ({ bind_token, project_id, status, page, size }) => {
+  }, async ({ bind_token, filter, project_id, status, page, size }) => {
     try {
       const data = await doorayFetch(bind_token, `/project/v1/projects/${project_id}/milestones`, {
         params: { status, page, size },
       });
       return okList(data as { result?: DoorayMilestone[]; totalCount?: number }, (m) => ({
         id: m.id, name: m.name, startedAt: m.startedAt, endedAt: m.endedAt, status: m.status,
-      }));
+      }), filter);
     } catch (e: unknown) {
       return err(e instanceof Error ? e.message : String(e));
     }
@@ -440,8 +445,9 @@ export function projectTools(server: McpServer) {
       project_id: z.string().describe("프로젝트 ID"),
       roles: z.string().optional().describe("역할 필터"),
       ...paginationSchema,
+      ...filterSchema,
     },
-  }, async ({ bind_token, project_id, roles, page, size }) => {
+  }, async ({ bind_token, filter, project_id, roles, page, size }) => {
     try {
       const data = await doorayFetch(bind_token, `/project/v1/projects/${project_id}/members`, {
         params: { roles, page, size },
@@ -450,7 +456,7 @@ export function projectTools(server: McpServer) {
         organizationMemberId: m.member?.organizationMemberId ?? m.organizationMemberId,
         name: m.member?.name ?? m.name,
         role: m.role,
-      }));
+      }), filter);
     } catch (e: unknown) {
       return err(e instanceof Error ? e.message : String(e));
     }
@@ -478,15 +484,16 @@ export function projectTools(server: McpServer) {
       bind_token: bindTokenSchema,
       project_id: z.string().describe("프로젝트 ID"),
       ...paginationSchema,
+      ...filterSchema,
     },
-  }, async ({ bind_token, project_id, page, size }) => {
+  }, async ({ bind_token, filter, project_id, page, size }) => {
     try {
       const data = await doorayFetch(bind_token, `/project/v1/projects/${project_id}/member-groups`, {
         params: { page, size },
       });
       return okList(data as { result?: DoorayMemberGroup[]; totalCount?: number }, (g) => ({
         id: g.id, name: g.name, memberCount: g.memberCount,
-      }));
+      }), filter);
     } catch (e: unknown) {
       return err(e instanceof Error ? e.message : String(e));
     }
@@ -543,15 +550,16 @@ export function projectTools(server: McpServer) {
       bind_token: bindTokenSchema,
       project_id: z.string().describe("프로젝트 ID"),
       ...paginationSchema,
+      ...filterSchema,
     },
-  }, async ({ bind_token, project_id, page, size }) => {
+  }, async ({ bind_token, filter, project_id, page, size }) => {
     try {
       const data = await doorayFetch(bind_token, `/project/v1/projects/${project_id}/templates`, {
         params: { page, size },
       });
       return okList(data as { result?: DoorayTemplate[]; totalCount?: number }, (t) => ({
         id: t.id, name: t.templateName ?? t.name,
-      }));
+      }), filter);
     } catch (e: unknown) {
       return err(e instanceof Error ? e.message : String(e));
     }

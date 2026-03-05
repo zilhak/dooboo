@@ -24,7 +24,12 @@ function createMcpServer(): McpServer {
 
 사용 흐름: list_servers → bind(server_id) → bind_token으로 도구 호출.
 처음 사용 시: register_server(url) → register_token(server_id, token) → bind → 도구 호출.
-티켓 조회: find_task_by_ticket(ticket, include)로 본문/댓글/이미지를 한번에 조회 가능.`,
+티켓 조회: find_task_by_ticket(ticket, include)로 본문/댓글/이미지를 한번에 조회 가능.
+
+위키 탐색: Dooray 위키는 계층 구조이며, API는 한 번에 한 depth만 조회 가능합니다.
+문서를 찾을 때는 search_wiki_tree(depth=2)로 트리 구조를 먼저 파악하세요.
+특정 브랜치를 더 탐색하려면 해당 parentPageId로 search_wiki_tree를 다시 호출하세요.
+여러 페이지 내용을 읽을 때는 get_wiki_page를 병렬로 호출하면 빠릅니다.`,
   });
 
   registerServerTool(server);

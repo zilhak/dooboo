@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { doorayFetch } from "../client.ts";
-import { ok, err, okList, bindTokenSchema, paginationSchema } from "../helpers.ts";
+import { ok, err, okList, bindTokenSchema, paginationSchema, filterSchema } from "../helpers.ts";
 
 export function calendarTools(server: McpServer) {
   server.registerTool("create_calendar", {
@@ -31,15 +31,16 @@ export function calendarTools(server: McpServer) {
     inputSchema: {
       bind_token: bindTokenSchema,
       ...paginationSchema,
+      ...filterSchema,
     },
-  }, async ({ bind_token, page, size }) => {
+  }, async ({ bind_token, filter, page, size }) => {
     try {
       const data = await doorayFetch(bind_token, "/calendar/v1/calendars", {
         params: { page, size },
       });
       return okList(data as { result?: Array<{ id: string; name?: string; type?: string }>; totalCount?: number }, (c) => ({
         id: c.id, name: c.name, type: c.type,
-      }));
+      }), filter);
     } catch (e: unknown) {
       return err(e instanceof Error ? e.message : String(e));
     }
@@ -132,15 +133,16 @@ export function calendarTools(server: McpServer) {
       calendars: z.string().optional().describe("캘린더 ID 목록 (콤마 구분)"),
       postType: z.string().optional().describe("게시물 타입"),
       category: z.string().optional().describe("카테고리"),
+      ...filterSchema,
     },
-  }, async ({ bind_token, timeMin, timeMax, calendars, postType, category }) => {
+  }, async ({ bind_token, filter, timeMin, timeMax, calendars, postType, category }) => {
     try {
       const data = await doorayFetch(bind_token, "/calendar/v1/calendars/*/events", {
         params: { timeMin, timeMax, calendars, postType, category },
       });
       return okList(data as { result?: Array<{ id: string; subject?: string; startedAt?: string; endedAt?: string; location?: string; creator?: { member?: { organizationMemberId?: string } } }>; totalCount?: number }, (e) => ({
         id: e.id, subject: e.subject, startedAt: e.startedAt, endedAt: e.endedAt, location: e.location, creatorId: e.creator?.member?.organizationMemberId,
-      }));
+      }), filter);
     } catch (e: unknown) {
       return err(e instanceof Error ? e.message : String(e));
     }

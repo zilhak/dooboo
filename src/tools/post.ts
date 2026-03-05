@@ -3,7 +3,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { doorayFetch, doorayDownload } from "../client.ts";
 import { DATA_DIR } from "../db.ts";
 import { join } from "node:path";
-import { ok, err, okList, bindTokenSchema, paginationSchema, type DoorayTask, type DoorayFile, type DoorayComment } from "../helpers.ts";
+import { ok, err, okList, bindTokenSchema, paginationSchema, filterSchema, type DoorayTask, type DoorayFile, type DoorayComment } from "../helpers.ts";
 
 export function postTools(server: McpServer) {
   server.registerTool("find_task_by_ticket", {
@@ -301,8 +301,9 @@ export function postTools(server: McpServer) {
       dueAt: z.string().optional().describe("마감일 범위"),
       order: z.string().optional().describe("정렬 순서"),
       ...paginationSchema,
+      ...filterSchema,
     },
-  }, async ({ bind_token, project_id, ...params }) => {
+  }, async ({ bind_token, project_id, filter, ...params }) => {
     try {
       const data = await doorayFetch(bind_token, `/project/v1/projects/${project_id}/posts`, {
         params: params as Record<string, string | number | undefined>,
@@ -320,7 +321,7 @@ export function postTools(server: McpServer) {
         updatedAt: t.updatedAt,
         closed: t.closed,
         fileCount: t.fileIdList?.length ?? 0,
-      }));
+      }), filter);
     } catch (e: unknown) {
       return err(e instanceof Error ? e.message : String(e));
     }
@@ -482,13 +483,14 @@ export function postTools(server: McpServer) {
       bind_token: bindTokenSchema,
       project_id: z.string().describe("프로젝트 ID"),
       post_id: z.string().describe("업무 ID (post ID)"),
+      ...filterSchema,
     },
-  }, async ({ bind_token, project_id, post_id }) => {
+  }, async ({ bind_token, filter, project_id, post_id }) => {
     try {
       const data = await doorayFetch(bind_token, `/project/v1/projects/${project_id}/posts/${post_id}/files`);
       return okList(data as { result?: DoorayFile[]; totalCount?: number }, (f) => ({
         id: f.id, name: f.name, size: f.size,
-      }));
+      }), filter);
     } catch (e: unknown) {
       return err(e instanceof Error ? e.message : String(e));
     }
@@ -625,8 +627,9 @@ export function postTools(server: McpServer) {
       post_id: z.string().describe("업무 ID (post ID)"),
       order: z.string().optional().describe("정렬 순서"),
       ...paginationSchema,
+      ...filterSchema,
     },
-  }, async ({ bind_token, project_id, post_id, order, page, size }) => {
+  }, async ({ bind_token, filter, project_id, post_id, order, page, size }) => {
     try {
       const data = await doorayFetch(bind_token, `/project/v1/projects/${project_id}/posts/${post_id}/logs`, {
         params: { order, page, size },
@@ -635,7 +638,7 @@ export function postTools(server: McpServer) {
         id: c.id, type: c.type, subtype: c.subtype,
         createdAt: c.createdAt,
         creatorId: c.creator?.member?.organizationMemberId,
-      }));
+      }), filter);
     } catch (e: unknown) {
       return err(e instanceof Error ? e.message : String(e));
     }

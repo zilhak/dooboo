@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { doorayFetch } from "../client.ts";
-import { ok, err, okList, bindTokenSchema, paginationSchema } from "../helpers.ts";
+import { ok, err, okList, bindTokenSchema, paginationSchema, filterSchema } from "../helpers.ts";
 
 export function wikiTools(server: McpServer) {
   server.registerTool("list_wikis", {
@@ -9,13 +9,14 @@ export function wikiTools(server: McpServer) {
     inputSchema: {
       bind_token: bindTokenSchema,
       ...paginationSchema,
+      ...filterSchema,
     },
-  }, async ({ bind_token, page, size }) => {
+  }, async ({ bind_token, filter, page, size }) => {
     try {
       const data = await doorayFetch(bind_token, "/wiki/v1/wikis", { params: { page, size } });
       return okList(data as { result?: Array<{ id: string; name?: string }>; totalCount?: number }, (w) => ({
         id: w.id, name: w.name,
-      }));
+      }), filter);
     } catch (e: unknown) {
       return err(e instanceof Error ? e.message : String(e));
     }
@@ -68,15 +69,52 @@ export function wikiTools(server: McpServer) {
       bind_token: bindTokenSchema,
       wiki_id: z.string().describe("위키 ID"),
       parentPageId: z.string().optional().describe("상위 페이지 ID (null이면 최상위)"),
+      ...filterSchema,
     },
-  }, async ({ bind_token, wiki_id, parentPageId }) => {
+  }, async ({ bind_token, filter, wiki_id, parentPageId }) => {
     try {
       const data = await doorayFetch(bind_token, `/wiki/v1/wikis/${wiki_id}/pages`, {
         params: { parentPageId },
       });
       return okList(data as { result?: Array<{ id: string; subject?: string; parentPageId?: string; order?: number; createdAt?: string; updatedAt?: string }>; totalCount?: number }, (p) => ({
         id: p.id, subject: p.subject, parentPageId: p.parentPageId, order: p.order, createdAt: p.createdAt, updatedAt: p.updatedAt,
-      }));
+      }), filter);
+    } catch (e: unknown) {
+      return err(e instanceof Error ? e.message : String(e));
+    }
+  });
+
+  server.registerTool("search_wiki_tree", {
+    description: "위키 페이지 트리를 지정한 depth만큼 탐색하여 제목(subject) 트리를 반환합니다. Dooray 위키는 한 번에 한 depth만 조회 가능하므로, 문서를 찾을 때는 이 도구로 트리 구조를 먼저 파악하세요. depth=2로 시작하여 관련 브랜치를 발견하면 해당 parentPageId로 더 깊이 탐색합니다. 본문은 포함되지 않으며, 내용이 필요하면 get_wiki_page를 병렬로 호출하세요.",
+    inputSchema: {
+      bind_token: bindTokenSchema,
+      wiki_id: z.string().describe("위키 ID"),
+      parentPageId: z.string().optional().describe("탐색 시작 페이지 ID (생략 시 최상위부터)"),
+      depth: z.number().min(1).max(5).default(2).describe("탐색 깊이 (1~5, 기본값 2)"),
+    },
+  }, async ({ bind_token, wiki_id, parentPageId, depth }) => {
+    try {
+      type TreeNode = { id: string; subject: string; children?: TreeNode[] };
+
+      async function fetchLevel(pid: string | undefined, d: number): Promise<TreeNode[]> {
+        const data = await doorayFetch(bind_token, `/wiki/v1/wikis/${wiki_id}/pages`, {
+          params: { parentPageId: pid },
+        }) as { result?: Array<{ id: string; subject?: string }> };
+        const pages = data.result ?? [];
+        const nodes: TreeNode[] = [];
+        for (const p of pages) {
+          const node: TreeNode = { id: p.id, subject: p.subject ?? "(제목 없음)" };
+          if (d > 1) {
+            const children = await fetchLevel(p.id, d - 1);
+            if (children.length > 0) node.children = children;
+          }
+          nodes.push(node);
+        }
+        return nodes;
+      }
+
+      const tree = await fetchLevel(parentPageId, depth);
+      return ok({ tree });
     } catch (e: unknown) {
       return err(e instanceof Error ? e.message : String(e));
     }
@@ -214,15 +252,16 @@ export function wikiTools(server: McpServer) {
       wiki_id: z.string().describe("위키 ID"),
       page_id: z.string().describe("위키 페이지 ID"),
       ...paginationSchema,
+      ...filterSchema,
     },
-  }, async ({ bind_token, wiki_id, page_id, page, size }) => {
+  }, async ({ bind_token, filter, wiki_id, page_id, page, size }) => {
     try {
       const data = await doorayFetch(bind_token, `/wiki/v1/wikis/${wiki_id}/pages/${page_id}/comments`, {
         params: { page, size },
       });
       return okList(data as { result?: Array<{ id: string; createdAt?: string; creator?: { member?: { organizationMemberId?: string } } }>; totalCount?: number }, (c) => ({
         id: c.id, createdAt: c.createdAt, creatorId: c.creator?.member?.organizationMemberId,
-      }));
+      }), filter);
     } catch (e: unknown) {
       return err(e instanceof Error ? e.message : String(e));
     }
@@ -294,15 +333,16 @@ export function wikiTools(server: McpServer) {
       page_id: z.string().describe("위키 페이지 ID"),
       valid: z.boolean().optional().describe("유효한 링크만 조회 (기본값 true)"),
       ...paginationSchema,
+      ...filterSchema,
     },
-  }, async ({ bind_token, wiki_id, page_id, valid, page, size }) => {
+  }, async ({ bind_token, filter, wiki_id, page_id, valid, page, size }) => {
     try {
       const data = await doorayFetch(bind_token, `/wiki/v1/wikis/${wiki_id}/pages/${page_id}/shared-links`, {
         params: { valid, page, size },
       });
       return okList(data as { result?: Array<{ id: string; url?: string; createdAt?: string }>; totalCount?: number }, (l) => ({
         id: l.id, url: l.url, createdAt: l.createdAt,
-      }));
+      }), filter);
     } catch (e: unknown) {
       return err(e instanceof Error ? e.message : String(e));
     }

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { doorayFetch } from "../client.ts";
-import { ok, err, okList, bindTokenSchema } from "../helpers.ts";
+import { ok, err, okList, bindTokenSchema, filterSchema } from "../helpers.ts";
 
 export function messengerTools(server: McpServer) {
   server.registerTool("send_direct_message", {
@@ -27,13 +27,14 @@ export function messengerTools(server: McpServer) {
     description: "속한 대화방 목록을 조회합니다.",
     inputSchema: {
       bind_token: bindTokenSchema,
+      ...filterSchema,
     },
-  }, async ({ bind_token }) => {
+  }, async ({ bind_token, filter }) => {
     try {
       const data = await doorayFetch(bind_token, "/messenger/v1/channels");
       return okList(data as { result?: Array<{ id: string; name?: string; type?: string; memberCount?: number }>; totalCount?: number }, (ch) => ({
         id: ch.id, name: ch.name, type: ch.type, memberCount: ch.memberCount,
-      }));
+      }), filter);
     } catch (e: unknown) {
       return err(e instanceof Error ? e.message : String(e));
     }
