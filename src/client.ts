@@ -128,3 +128,80 @@ export async function doorayDownload(bindToken: string, path: string, savePath: 
   writeFileSync(savePath, Buffer.from(buffer));
   return savePath;
 }
+
+export async function doorayUpload(
+  bindToken: string,
+  path: string,
+  filePath: string,
+): Promise<{ id: string; name?: string; size?: number }> {
+  const { readFileSync, statSync } = await import("node:fs");
+  const { basename } = await import("node:path");
+
+  const { server_url, token } = resolveBinding(bindToken);
+  const apiBase = deriveApiBaseUrl(server_url);
+  const url = `${apiBase}${path}`;
+
+  const fileName = basename(filePath);
+  const fileBuffer = readFileSync(filePath);
+  const stat = statSync(filePath);
+
+  // MIME type 추론
+  const ext = fileName.split(".").pop()?.toLowerCase() ?? "";
+  const mimeMap: Record<string, string> = {
+    png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg",
+    gif: "image/gif", webp: "image/webp", svg: "image/svg+xml",
+    pdf: "application/pdf", zip: "application/zip",
+    json: "application/json", txt: "text/plain",
+  };
+  const mimeType = mimeMap[ext] ?? "application/octet-stream";
+
+  const blob = new Blob([fileBuffer], { type: mimeType });
+  const formData = new FormData();
+  formData.append("file", blob, fileName);
+
+  const headers: Record<string, string> = {
+    "Authorization": `dooray-api ${token}`,
+  };
+
+  // 1차 요청 (307 리다이렉트 수동 처리)
+  const initialResponse = await fetch(url, {
+    method: "POST",
+    headers,
+    body: formData,
+    redirect: "manual",
+  });
+
+  let finalResponse: Response;
+  if (initialResponse.status >= 300 && initialResponse.status < 400) {
+    const redirectUrl = initialResponse.headers.get("location");
+    if (!redirectUrl) {
+      throw new Error(`리다이렉트 URL을 찾을 수 없습니다 (${initialResponse.status})`);
+    }
+    finalResponse = await fetch(redirectUrl, {
+      method: "POST",
+      headers,
+      body: formData,
+    });
+  } else if (initialResponse.ok) {
+    finalResponse = initialResponse;
+  } else {
+    const body = await initialResponse.text();
+    throw new Error(`업로드 실패 (${initialResponse.status}): ${body.substring(0, 200)}`);
+  }
+
+  if (!finalResponse.ok) {
+    const body = await finalResponse.text();
+    throw new Error(`업로드 실패 (${finalResponse.status}): ${body.substring(0, 200)}`);
+  }
+
+  const result = await finalResponse.json() as {
+    header?: { isSuccessful?: boolean; resultMessage?: string };
+    result?: { id: string; name?: string; size?: number };
+  };
+
+  if (!result.result?.id) {
+    throw new Error(`업로드 응답에 파일 ID가 없습니다: ${JSON.stringify(result)}`);
+  }
+
+  return { id: result.result.id, name: fileName, size: stat.size };
+}

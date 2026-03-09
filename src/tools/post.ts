@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { doorayFetch, doorayDownload } from "../client.ts";
-import { DATA_DIR } from "../db.ts";
+import { doorayFetch, doorayDownload, doorayUpload } from "../client.ts";
+import { DATA_DIR, toHostPath } from "../db.ts";
 import { join } from "node:path";
 import { ok, err, okList, bindTokenSchema, paginationSchema, filterSchema, type DoorayTask, type DoorayFile, type DoorayComment } from "../helpers.ts";
 
@@ -167,7 +167,7 @@ export function postTools(server: McpServer) {
           try {
             const apiPath = `/project/v1/projects/${projectId}/posts/${postId}/files/${fileId}?media=raw`;
             await doorayDownload(bind_token, apiPath, savePath);
-            pathMap[fileId] = savePath;
+            pathMap[fileId] = toHostPath(savePath);
           } catch {
             // 다운로드 실패한 파일은 건너뜀
           }
@@ -568,7 +568,7 @@ export function postTools(server: McpServer) {
       const apiPath = `${path}${separator}media=raw`;
       const savePath = join(imagesDir, filename);
       const saved = await doorayDownload(bind_token, apiPath, savePath);
-      return ok({ message: "다운로드 완료", path: saved });
+      return ok({ message: "다운로드 완료", path: toHostPath(saved) });
     } catch (e: unknown) {
       return err(e instanceof Error ? e.message : String(e));
     }
@@ -588,6 +588,46 @@ export function postTools(server: McpServer) {
         method: "DELETE",
       });
       return ok(data);
+    } catch (e: unknown) {
+      return err(e instanceof Error ? e.message : String(e));
+    }
+  });
+
+  server.registerTool("upload_file", {
+    description: "로컬 파일을 Dooray 업무에 첨부 업로드합니다. 파일은 ~/.dooboo/uploads/ 디렉토리에 미리 복사해두어야 합니다. 업로드 성공 후 로컬 파일은 자동 삭제됩니다. 반환된 fileId를 create_task_comment 등의 attachFileIds에 사용할 수 있습니다.",
+    inputSchema: {
+      bind_token: bindTokenSchema,
+      project_id: z.string().describe("프로젝트 ID"),
+      post_id: z.string().describe("업무 ID (post ID)"),
+      filename: z.string().describe("~/.dooboo/uploads/ 내 파일명 (예: screenshot.png)"),
+    },
+  }, async ({ bind_token, project_id, post_id, filename }) => {
+    try {
+      const { existsSync, unlinkSync } = await import("node:fs");
+
+      const uploadsDir = join(DATA_DIR, "uploads");
+      const filePath = join(uploadsDir, filename);
+
+      if (!existsSync(filePath)) {
+        return err(`파일을 찾을 수 없습니다: ${toHostPath(filePath)}\n파일을 ${toHostPath(uploadsDir)}/ 디렉토리에 먼저 복사해주세요.`);
+      }
+
+      const apiPath = `/project/v1/projects/${project_id}/posts/${post_id}/files`;
+      const result = await doorayUpload(bind_token, apiPath, filePath);
+
+      // 업로드 성공 후 로컬 파일 삭제
+      try {
+        unlinkSync(filePath);
+      } catch {
+        // 삭제 실패해도 업로드 결과는 반환
+      }
+
+      return ok({
+        message: "업로드 완료",
+        fileId: result.id,
+        name: result.name,
+        size: result.size,
+      });
     } catch (e: unknown) {
       return err(e instanceof Error ? e.message : String(e));
     }

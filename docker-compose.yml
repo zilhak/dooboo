@@ -1,7 +1,10 @@
 services:
   dooboo:
     build: .
+    restart: unless-stopped
     ports:
       - "12701:12701"
+    environment:
+      DOOBOO_HOST_DATA_DIR: "${DOOBOO_DATA_DIR:-${HOME}/.dooboo}"
     volumes:
-      - ~/.dooboo:/root/.dooboo
+      - ${DOOBOO_DATA_DIR:-~/.dooboo}:/root/.dooboo
