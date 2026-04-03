@@ -15,7 +15,11 @@ export function resolveBinding(bindToken: string): Binding {
   `).get(bindToken) as Binding | null;
 
   if (!row) {
-    throw new Error(`유효하지 않은 bind_token: ${bindToken}`);
+    throw new Error(
+      `유효하지 않거나 현재 저장소에서 찾을 수 없는 bind_token입니다: ${bindToken}. `
+      + "list_servers로 server_id를 확인한 뒤 bind(server_id)를 다시 호출해 새 bind_token을 발급받아 주세요. "
+      + "처음 설정이 안 된 경우 register_token(server_id, token) 후 bind(server_id)를 호출하세요.",
+    );
   }
 
   return row;

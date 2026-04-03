@@ -5,6 +5,29 @@ import { DATA_DIR, toHostPath } from "../db.ts";
 import { join } from "node:path";
 import { ok, err, okList, bindTokenSchema, paginationSchema, filterSchema, type DoorayTask, type DoorayFile, type DoorayComment } from "../helpers.ts";
 
+/** 코드 블록/인라인 코드 바깥의 꺾쇠괄호를 HTML 엔티티로 이스케이프한다. */
+function escapeAngleBrackets(text: string): string {
+  const parts: string[] = [];
+  const codePattern = /(```[\s\S]*?```|`[^`]+`)/g;
+  let match: RegExpExecArray | null;
+  let lastIndex = 0;
+  while ((match = codePattern.exec(text)) !== null) {
+    parts.push(text.slice(lastIndex, match.index).replace(/</g, "&lt;").replace(/>/g, "&gt;"));
+    parts.push(match[0]);
+    lastIndex = match.index + match[0].length;
+  }
+  parts.push(text.slice(lastIndex).replace(/</g, "&lt;").replace(/>/g, "&gt;"));
+  return parts.join("");
+}
+
+/** 본문 객체의 꺾쇠괄호를 이스케이프하고, mimeType 기본값을 설정한다. */
+function sanitizeBody(body?: { mimeType?: string; content: string }) {
+  if (!body) return body;
+  if (!body.mimeType) body.mimeType = "text/x-markdown";
+  body.content = escapeAngleBrackets(body.content);
+  return body;
+}
+
 export function postTools(server: McpServer) {
   server.registerTool("find_task_by_ticket", {
     description: "티켓 번호(예: 'CONE-Chain-Portal/272')로 업무를 바로 조회합니다. include 옵션으로 본문(body), 댓글(comments), 이미지 다운로드(images)를 함께 조회할 수 있습니다. images를 지정하면 본문/댓글의 이미지를 ~/.dooboo/images/에 다운로드하고, 마크다운 내 경로를 로컬 파일 경로로 치환하여 반환합니다.",
@@ -241,6 +264,7 @@ export function postTools(server: McpServer) {
     },
   }, async ({ bind_token, ...body }) => {
     try {
+      sanitizeBody(body.body);
       const data = await doorayFetch(bind_token, "/project/v1/post-drafts", {
         method: "POST",
         body,
@@ -252,7 +276,7 @@ export function postTools(server: McpServer) {
   });
 
   server.registerTool("create_task", {
-    description: "프로젝트에 새 업무(태스크)를 생성합니다. Jira의 이슈 생성과 유사합니다. 담당자, 마감일, 태그, 우선순위 등을 설정할 수 있습니다.",
+    description: "프로젝트에 새 업무(태스크)를 생성합니다. Jira의 이슈 생성과 유사합니다. 담당자, 마감일, 태그, 우선순위 등을 설정할 수 있습니다. 본문의 꺾쇠괄호(<, >)는 자동으로 이스케이프되며, mimeType 미지정 시 text/x-markdown이 기본 적용됩니다.",
     inputSchema: {
       bind_token: bindTokenSchema,
       project_id: z.string().describe("프로젝트 ID"),
@@ -271,6 +295,7 @@ export function postTools(server: McpServer) {
     },
   }, async ({ bind_token, project_id, ...body }) => {
     try {
+      sanitizeBody(body.body);
       const data = await doorayFetch(bind_token, `/project/v1/projects/${project_id}/posts`, {
         method: "POST",
         body,
@@ -364,6 +389,7 @@ export function postTools(server: McpServer) {
     },
   }, async ({ bind_token, project_id, post_id, ...body }) => {
     try {
+      sanitizeBody(body.body);
       const data = await doorayFetch(bind_token, `/project/v1/projects/${project_id}/posts/${post_id}`, {
         method: "PUT",
         body,
@@ -646,7 +672,7 @@ export function postTools(server: McpServer) {
   }, async ({ bind_token, project_id, post_id, content, mimeType, attachFileIds }) => {
     try {
       const body: Record<string, unknown> = {
-        body: { content, mimeType: mimeType ?? "text/x-markdown" },
+        body: { content: escapeAngleBrackets(content), mimeType: mimeType ?? "text/x-markdown" },
       };
       if (attachFileIds) body.attachFileIds = attachFileIds;
       const data = await doorayFetch(bind_token, `/project/v1/projects/${project_id}/posts/${post_id}/logs`, {
@@ -715,7 +741,7 @@ export function postTools(server: McpServer) {
   }, async ({ bind_token, project_id, post_id, log_id, content, mimeType, attachFileIds }) => {
     try {
       const body: Record<string, unknown> = {
-        body: { content, mimeType: mimeType ?? "text/x-markdown" },
+        body: { content: escapeAngleBrackets(content), mimeType: mimeType ?? "text/x-markdown" },
       };
       if (attachFileIds) body.attachFileIds = attachFileIds;
       const data = await doorayFetch(bind_token, `/project/v1/projects/${project_id}/posts/${post_id}/logs/${log_id}`, {
