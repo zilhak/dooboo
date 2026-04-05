@@ -1,4 +1,5 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { registerServerTool } from "./tools/register-server.ts";
 import { registerTokenTool } from "./tools/register-token.ts";
@@ -15,6 +16,7 @@ import { contactTools } from "./tools/contact.ts";
 import { reservationTools } from "./tools/reservation.ts";
 
 const PORT = Number(process.env.PORT) || 12701;
+const STDIO = process.argv.includes("--stdio");
 
 function createMcpServer(): McpServer {
   const server = new McpServer({
@@ -49,58 +51,64 @@ function createMcpServer(): McpServer {
   return server;
 }
 
-const sessions = new Map<string, { transport: WebStandardStreamableHTTPServerTransport; server: McpServer }>();
+if (STDIO) {
+  const server = createMcpServer();
+  const transport = new StdioServerTransport();
+  await server.connect(transport);
+} else {
+  const sessions = new Map<string, { transport: WebStandardStreamableHTTPServerTransport; server: McpServer }>();
 
-Bun.serve({
-  port: PORT,
-  async fetch(req) {
-    const url = new URL(req.url);
+  Bun.serve({
+    port: PORT,
+    async fetch(req) {
+      const url = new URL(req.url);
 
-    if (url.pathname !== "/mcp") {
-      return new Response("Not Found", { status: 404 });
-    }
-
-    // MCP SDK requires Accept header with both application/json and text/event-stream.
-    // Some MCP clients (e.g. Claude Code) may not send this, so we ensure it.
-    const accept = req.headers.get("accept") ?? "";
-    if (!accept.includes("application/json") || !accept.includes("text/event-stream")) {
-      const headers = new Headers(req.headers);
-      headers.set("accept", "application/json, text/event-stream");
-      req = new Request(req, { headers });
-    }
-
-    if (req.method === "GET" || req.method === "DELETE") {
-      const sessionId = req.headers.get("mcp-session-id");
-      if (!sessionId || !sessions.has(sessionId)) {
-        return new Response("Session not found", { status: 404 });
+      if (url.pathname !== "/mcp") {
+        return new Response("Not Found", { status: 404 });
       }
-      return sessions.get(sessionId)!.transport.handleRequest(req);
-    }
 
-    if (req.method === "POST") {
-      const sessionId = req.headers.get("mcp-session-id");
+      // MCP SDK requires Accept header with both application/json and text/event-stream.
+      // Some MCP clients (e.g. Claude Code) may not send this, so we ensure it.
+      const accept = req.headers.get("accept") ?? "";
+      if (!accept.includes("application/json") || !accept.includes("text/event-stream")) {
+        const headers = new Headers(req.headers);
+        headers.set("accept", "application/json, text/event-stream");
+        req = new Request(req, { headers });
+      }
 
-      if (sessionId && sessions.has(sessionId)) {
+      if (req.method === "GET" || req.method === "DELETE") {
+        const sessionId = req.headers.get("mcp-session-id");
+        if (!sessionId || !sessions.has(sessionId)) {
+          return new Response("Session not found", { status: 404 });
+        }
         return sessions.get(sessionId)!.transport.handleRequest(req);
       }
 
-      const mcpServer = createMcpServer();
-      const transport = new WebStandardStreamableHTTPServerTransport({
-        sessionIdGenerator: () => crypto.randomUUID(),
-        onsessioninitialized: (id) => {
-          sessions.set(id, { transport, server: mcpServer });
-        },
-        onsessionclosed: (id) => {
-          sessions.delete(id);
-        },
-      });
+      if (req.method === "POST") {
+        const sessionId = req.headers.get("mcp-session-id");
 
-      await mcpServer.connect(transport);
-      return transport.handleRequest(req);
-    }
+        if (sessionId && sessions.has(sessionId)) {
+          return sessions.get(sessionId)!.transport.handleRequest(req);
+        }
 
-    return new Response("Method Not Allowed", { status: 405 });
-  },
-});
+        const mcpServer = createMcpServer();
+        const transport = new WebStandardStreamableHTTPServerTransport({
+          sessionIdGenerator: () => crypto.randomUUID(),
+          onsessioninitialized: (id) => {
+            sessions.set(id, { transport, server: mcpServer });
+          },
+          onsessionclosed: (id) => {
+            sessions.delete(id);
+          },
+        });
 
-console.log(`dooboo MCP server listening on http://localhost:${PORT}/mcp`);
+        await mcpServer.connect(transport);
+        return transport.handleRequest(req);
+      }
+
+      return new Response("Method Not Allowed", { status: 405 });
+    },
+  });
+
+  console.log(`dooboo MCP server listening on http://localhost:${PORT}/mcp`);
+}
