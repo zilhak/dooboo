@@ -5,13 +5,23 @@ import { DATA_DIR, toHostPath } from "../db.ts";
 import { join } from "node:path";
 import { ok, err, okList, bindTokenSchema, paginationSchema, filterSchema, type DoorayTask, type DoorayFile, type DoorayComment } from "../helpers.ts";
 
-/** 코드 블록/인라인 코드 바깥의 꺾쇠괄호를 HTML 엔티티로 이스케이프한다. */
+/**
+ * 코드 블록/인라인 코드 및 HTML 태그 바깥의 꺾쇠괄호를 HTML 엔티티로 이스케이프한다.
+ * Dooray 마크다운에서 허용하는 HTML 태그(details, summary, span, strong, em, br, hr, del,
+ * sub, sup, table, thead, tbody, tr, th, td, a, img, div, p, ul, ol, li, blockquote,
+ * pre, code, h1-h6, b, i, u, s, mark)는 보존한다.
+ */
 function escapeAngleBrackets(text: string): string {
   const parts: string[] = [];
-  const codePattern = /(```[\s\S]*?```|`[^`]+`)/g;
+  // 코드 블록, 인라인 코드, 허용된 HTML 태그(여는/닫는/셀프클로징)를 매칭
+  const allowedTags = "details|summary|span|strong|em|br|hr|del|sub|sup|table|thead|tbody|tr|th|td|a|img|div|p|ul|ol|li|blockquote|pre|code|h[1-6]|b|i|u|s|mark";
+  const preservePattern = new RegExp(
+    `(\`\`\`[\\s\\S]*?\`\`\`|\`[^\`]+\`|<\\/?(${allowedTags})(\\s[^>]*)?\\/?>)`,
+    "gi"
+  );
   let match: RegExpExecArray | null;
   let lastIndex = 0;
-  while ((match = codePattern.exec(text)) !== null) {
+  while ((match = preservePattern.exec(text)) !== null) {
     parts.push(text.slice(lastIndex, match.index).replace(/</g, "&lt;").replace(/>/g, "&gt;"));
     parts.push(match[0]);
     lastIndex = match.index + match[0].length;
